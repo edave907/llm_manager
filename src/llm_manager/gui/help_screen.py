@@ -117,6 +117,17 @@ class HelpScreen(ModalScreen):
                     ]
                 ), classes="help-section")
 
+                # Pane Management section
+                yield Static(self._create_section(
+                    "Pane Management",
+                    [
+                        ("m", "Toggle maximize/restore focused pane"),
+                        ("n", "Toggle minimize/restore focused pane"),
+                        ("Ctrl+↑", "Increase pane size (Min→Norm→2x→3x→Max)"),
+                        ("Ctrl+↓", "Decrease pane size (Max→3x→2x→Norm→Min)"),
+                    ]
+                ), classes="help-section")
+
                 # Conversation section
                 yield Static(self._create_section(
                     "Conversation History",
@@ -130,6 +141,7 @@ class HelpScreen(ModalScreen):
                 yield Static(self._create_section(
                     "General",
                     [
+                        ("ESC", "Open pane management menu"),
                         ("?", "Show/hide this help screen"),
                         ("q", "Quit application"),
                     ]

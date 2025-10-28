@@ -3,6 +3,7 @@
 import asyncio
 from pathlib import Path
 from datetime import datetime
+from enum import Enum
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
@@ -16,6 +17,14 @@ from .pane import EditablePane
 from .llm_pane import LLMSelectionPane
 from .response_pane import ResponsePane
 from .help_screen import HelpScreen
+from .menu import PaneMenuScreen
+
+
+class PaneState(Enum):
+    """Pane visibility states."""
+    NORMAL = "normal"
+    MAXIMIZED = "maximized"
+    MINIMIZED = "minimized"
 
 
 class LLMManagerApp(App):
@@ -33,11 +42,45 @@ class LLMManagerApp(App):
     .pane-row {
         height: 1fr;
     }
+
+    .pane-minimized {
+        height: 3;
+        max-height: 3;
+    }
+
+    .pane-minimized TextArea {
+        display: none;
+    }
+
+    .pane-minimized .pane-footer {
+        display: none;
+    }
+
+    .pane-minimized .response-content {
+        display: none;
+    }
+
+    .pane-minimized .status-bar {
+        display: none;
+    }
+
+    .pane-minimized .model-list {
+        display: none;
+    }
+
+    .pane-minimized .model-info {
+        display: none;
+    }
+
+    .row-hidden {
+        display: none;
+    }
     """
 
     BINDINGS = [
         Binding("?", "show_help", "Help", show=True),
         Binding("q", "quit", "Quit", show=True),
+        Binding("escape", "show_pane_menu", "Menu", show=True),
         Binding("1", "focus_user_prompt", "User Prompt", show=True),
         Binding("2", "focus_system_prompt", "System Prompt", show=True),
         Binding("3", "focus_context", "Context", show=True),
@@ -52,6 +95,10 @@ class LLMManagerApp(App):
         Binding("c", "clear_response", "Clear", show=False),
         Binding("ctrl+e", "export_conversation", "Export", show=False),
         Binding("ctrl+i", "import_conversation", "Import", show=False),
+        Binding("m", "toggle_maximize", "Maximize", show=True),
+        Binding("n", "toggle_minimize", "Minimize", show=True),
+        Binding("ctrl+up", "increase_height", "Height+", show=False),
+        Binding("ctrl+down", "decrease_height", "Height-", show=False),
     ]
 
     TITLE = "LLM Manager"
@@ -65,6 +112,11 @@ class LLMManagerApp(App):
         # Create LLM client and conversation history
         self.llm_client = LLMClient()
         self.conversation_history = ConversationHistory()
+
+        # Track pane states
+        self.pane_states = {}
+        self.maximized_pane = None
+        self.PaneState = PaneState  # Make PaneState accessible to menu
 
         # Create panes
         self.user_prompt_pane = EditablePane(
@@ -119,6 +171,10 @@ class LLMManagerApp(App):
 
     def on_mount(self) -> None:
         """Handle mount event."""
+        # Initialize pane states
+        for pane, _ in self._get_pane_list():
+            self.pane_states[pane] = PaneState.NORMAL
+
         # Focus user prompt by default
         self.user_prompt_pane.focus()
 
@@ -357,6 +413,212 @@ class LLMManagerApp(App):
     def action_show_help(self) -> None:
         """Show the help screen."""
         self.push_screen(HelpScreen())
+
+    def action_show_pane_menu(self) -> None:
+        """Show the pane management menu."""
+        self.push_screen(PaneMenuScreen(self))
+
+    def _get_focused_pane(self):
+        """Get the currently focused pane."""
+        focused = self.focused
+        current = focused
+
+        while current is not None:
+            if current in [pane for pane, _ in self._get_pane_list()]:
+                return current
+            current = current.parent
+
+        return None
+
+    def _get_pane_row(self, pane):
+        """Get the row container for a given pane."""
+        # Map panes to their row indices
+        if pane in [self.user_prompt_pane, self.system_prompt_pane]:
+            return 0
+        elif pane in [self.context_pane, self.llm_selection_pane]:
+            return 1
+        elif pane == self.response_pane:
+            return 2
+        return None
+
+    def action_toggle_maximize(self) -> None:
+        """Toggle maximize state for the currently focused pane."""
+        pane = self._get_focused_pane()
+        if not pane:
+            return
+
+        # If this pane is maximized, restore it
+        if self.maximized_pane == pane:
+            self._restore_all_panes()
+            self.maximized_pane = None
+        # If another pane is maximized, switch to this one
+        elif self.maximized_pane is not None:
+            self._restore_all_panes()
+            self._maximize_pane(pane)
+            self.maximized_pane = pane
+        # If no pane is maximized, maximize this one
+        else:
+            self._maximize_pane(pane)
+            self.maximized_pane = pane
+
+    def action_toggle_minimize(self) -> None:
+        """Toggle minimize state for the currently focused pane."""
+        pane = self._get_focused_pane()
+        if not pane:
+            return
+
+        # Can't minimize if pane is maximized
+        if self.maximized_pane == pane:
+            return
+
+        # Initialize state if not present
+        if pane not in self.pane_states:
+            self.pane_states[pane] = PaneState.NORMAL
+
+        current_state = self.pane_states.get(pane, PaneState.NORMAL)
+
+        if current_state == PaneState.MINIMIZED:
+            # Restore from minimized
+            pane.remove_class("pane-minimized")
+            self.pane_states[pane] = PaneState.NORMAL
+        else:
+            # Minimize
+            pane.add_class("pane-minimized")
+            self.pane_states[pane] = PaneState.MINIMIZED
+
+    def _maximize_pane(self, pane):
+        """Maximize a specific pane."""
+        containers = self.query(".pane-row")
+        target_row_idx = self._get_pane_row(pane)
+
+        # Hide all rows except the one containing the target pane
+        for idx, container in enumerate(containers):
+            if idx != target_row_idx:
+                container.add_class("row-hidden")
+
+        # In the target row, hide other panes
+        pane_row = containers[target_row_idx]
+        for child in pane_row.children:
+            if child != pane and hasattr(child, 'add_class'):
+                child.add_class("row-hidden")
+
+        self.pane_states[pane] = PaneState.MAXIMIZED
+
+    def _restore_all_panes(self):
+        """Restore all panes to normal state."""
+        containers = self.query(".pane-row")
+        for container in containers:
+            container.remove_class("row-hidden")
+
+        for pane, _ in self._get_pane_list():
+            pane.remove_class("row-hidden")
+            if self.pane_states.get(pane) != PaneState.MINIMIZED:
+                self.pane_states[pane] = PaneState.NORMAL
+
+    def _get_pane_name(self, pane):
+        """Get the display name of a pane."""
+        for p, name in self._get_pane_list():
+            if p == pane:
+                return name
+        return "Unknown"
+
+    def action_increase_height(self) -> None:
+        """Increase height/state of the focused pane.
+
+        Cycles: Minimized → Normal (1fr) → 2fr → 3fr → Maximized → Minimized
+        """
+        pane = self._get_focused_pane()
+        if not pane:
+            return
+
+        # Initialize state if not present
+        if pane not in self.pane_states:
+            self.pane_states[pane] = PaneState.NORMAL
+
+        # Check current state
+        if self.maximized_pane == pane:
+            # Maximized → Minimized
+            self._restore_all_panes()
+            self.maximized_pane = None
+            pane.add_class("pane-minimized")
+            self.pane_states[pane] = PaneState.MINIMIZED
+        elif self.pane_states[pane] == PaneState.MINIMIZED:
+            # Minimized → Normal (1fr)
+            pane.remove_class("pane-minimized")
+            self.pane_states[pane] = PaneState.NORMAL
+            row_idx = self._get_pane_row(pane)
+            if row_idx is not None:
+                containers = self.query(".pane-row")
+                if row_idx < len(containers):
+                    containers[row_idx].styles.height = "1fr"
+        else:
+            # Normal state - check row height
+            row_idx = self._get_pane_row(pane)
+            if row_idx is not None:
+                containers = self.query(".pane-row")
+                if row_idx < len(containers):
+                    container = containers[row_idx]
+                    current_height = getattr(container.styles, 'height', None)
+
+                    if current_height is None or str(current_height) == "1fr":
+                        # 1fr → 2fr
+                        container.styles.height = "2fr"
+                    elif str(current_height) == "2fr":
+                        # 2fr → 3fr
+                        container.styles.height = "3fr"
+                    else:
+                        # 3fr → Maximized
+                        self._maximize_pane(pane)
+                        self.maximized_pane = pane
+
+    def action_decrease_height(self) -> None:
+        """Decrease height/state of the focused pane.
+
+        Cycles: Maximized → 3fr → 2fr → Normal (1fr) → Minimized → Maximized
+        """
+        pane = self._get_focused_pane()
+        if not pane:
+            return
+
+        # Initialize state if not present
+        if pane not in self.pane_states:
+            self.pane_states[pane] = PaneState.NORMAL
+
+        # Check current state
+        if self.maximized_pane == pane:
+            # Maximized → 3fr
+            self._restore_all_panes()
+            self.maximized_pane = None
+            row_idx = self._get_pane_row(pane)
+            if row_idx is not None:
+                containers = self.query(".pane-row")
+                if row_idx < len(containers):
+                    containers[row_idx].styles.height = "3fr"
+        elif self.pane_states[pane] == PaneState.MINIMIZED:
+            # Minimized → Maximized
+            pane.remove_class("pane-minimized")
+            self.pane_states[pane] = PaneState.NORMAL
+            self._maximize_pane(pane)
+            self.maximized_pane = pane
+        else:
+            # Normal state - check row height
+            row_idx = self._get_pane_row(pane)
+            if row_idx is not None:
+                containers = self.query(".pane-row")
+                if row_idx < len(containers):
+                    container = containers[row_idx]
+                    current_height = getattr(container.styles, 'height', None)
+
+                    if str(current_height) == "3fr":
+                        # 3fr → 2fr
+                        container.styles.height = "2fr"
+                    elif str(current_height) == "2fr":
+                        # 2fr → 1fr
+                        container.styles.height = "1fr"
+                    else:
+                        # 1fr → Minimized
+                        pane.add_class("pane-minimized")
+                        self.pane_states[pane] = PaneState.MINIMIZED
 
 
 def run_app() -> None:

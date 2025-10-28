@@ -13,6 +13,8 @@ A text-based GUI application for managing and interacting with Large Language Mo
   - Response: For displaying LLM responses with streaming support
 - **In-Place Editing**: Edit text directly in the TUI with multi-line TextArea widgets
 - **Visual Focus Indicators**: Highlighted borders and title bars show which pane is active
+- **Pane Management**: Maximize, minimize, resize, hide/unhide panes to customize your workspace
+- **Menu System**: Hierarchical dropdown menu for pane management (ESC key)
 - **Multiple LLM Support**:
   - OpenAI (GPT-4o, GPT-4o Mini, GPT-4 Turbo, GPT-3.5 Turbo)
   - Anthropic (Claude 3.5 Sonnet, Claude 3 Opus, Claude 3 Haiku)
@@ -71,11 +73,18 @@ python -m llm_manager
 - `s` - Toggle streaming mode on/off
 - `c` - Clear response pane
 
+#### Pane Management
+- `m` - Toggle maximize/restore focused pane
+- `n` - Toggle minimize/restore focused pane
+- `Ctrl+Up` - Increase pane size (cycles: Minimized → Normal → 2x → 3x → Maximized → Minimized)
+- `Ctrl+Down` - Decrease pane size (cycles: Maximized → 3x → 2x → Normal → Minimized → Maximized)
+
 #### History & Data
 - `Ctrl+E` - Export conversation history to JSON file
 - `Ctrl+I` - Import conversation history (placeholder)
 
 #### Application
+- `ESC` - Open pane management menu (list, select, hide/unhide panes)
 - `?` - Show help menu with all keyboard shortcuts
 - `q` - Quit application
 
