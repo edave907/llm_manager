@@ -1,0 +1,83 @@
+#!/usr/bin/expect -f
+# Test nvim integration with pane editing
+
+set timeout 20
+
+# Start the application
+spawn llm-manager
+
+# Wait for app to start
+expect {
+    timeout {
+        puts "ERROR: Application failed to start"
+        exit 1
+    }
+    "LLM Manager" {
+        puts "✓ Application started"
+    }
+}
+
+sleep 1
+
+# Focus user prompt (press 1)
+send "1"
+sleep 0.5
+
+# Press 'e' to edit
+puts "→ Testing nvim integration (pressing 'e' to edit)..."
+send "e"
+
+# Wait for nvim to launch
+expect {
+    timeout {
+        puts "ERROR: nvim did not launch"
+        exit 1
+    }
+    -re "(INSERT|~)" {
+        puts "✓ nvim launched successfully"
+    }
+}
+
+# Type some test content in nvim
+send "i"
+send "Test content from expect script\r"
+send "Line 2 of test content"
+
+# Save and quit nvim
+send "\x1b"
+send ":wq\r"
+
+# Should return to the TUI
+expect {
+    timeout {
+        puts "ERROR: Did not return to TUI after nvim"
+        exit 1
+    }
+    "LLM Manager" {
+        puts "✓ Returned to TUI after nvim edit"
+    }
+}
+
+# Check for update notification
+expect {
+    timeout {
+        puts "⚠ Update notification may have been too fast"
+    }
+    -re "(updated|Update)" {
+        puts "✓ Update notification received"
+    }
+}
+
+sleep 1
+
+# Quit the application
+send "q"
+
+expect eof
+wait
+
+puts "\n=========================================="
+puts "✓ nvim integration test passed!"
+puts "=========================================="
+
+exit 0

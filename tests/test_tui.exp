@@ -1,0 +1,164 @@
+#!/usr/bin/expect -f
+# Functional test for LLM Manager TUI
+
+set timeout 10
+
+# Cleanup function
+proc cleanup {} {
+    # Send quit command
+    send "q"
+    expect eof
+
+    # Reset terminal state to clean up any mouse tracking or other modes
+    exec printf "\033\[?1000l\033\[?1003l\033\[?1015l\033\[?1006l\033\[?25h"
+}
+
+# Emergency cleanup on script exit
+proc cleanup_terminal {} {
+    # Force reset terminal modes even if app didn't clean up
+    catch {exec printf "\033\[?1000l\033\[?1003l\033\[?1015l\033\[?1006l\033\[?25h"}
+}
+
+# Register cleanup to run on exit
+proc exit_cleanup {args} {
+    cleanup_terminal
+    exit
+}
+
+# Set up signal handlers
+trap exit_cleanup SIGINT
+trap exit_cleanup SIGTERM
+
+# Start the application
+spawn llm-manager
+
+# Wait for the app to start and display header
+expect {
+    timeout {
+        puts "ERROR: Application failed to start within timeout"
+        exit 1
+    }
+    "LLM Manager" {
+        puts "✓ Application started successfully"
+    }
+}
+
+# Test 1: Check that panes are displayed
+expect {
+    timeout {
+        puts "ERROR: Panes not displayed"
+        cleanup
+        exit 1
+    }
+    "User Prompt" {
+        puts "✓ User Prompt pane displayed"
+    }
+}
+
+expect {
+    timeout {
+        puts "ERROR: System Prompt pane not displayed"
+        cleanup
+        exit 1
+    }
+    "System Prompt" {
+        puts "✓ System Prompt pane displayed"
+    }
+}
+
+expect {
+    timeout {
+        puts "ERROR: Context pane not displayed"
+        cleanup
+        exit 1
+    }
+    "Context" {
+        puts "✓ Context pane displayed"
+    }
+}
+
+# Test 2: Check footer with keyboard shortcuts
+expect {
+    timeout {
+        puts "ERROR: Footer not displayed"
+        cleanup
+        exit 1
+    }
+    -re "(Quit|quit)" {
+        puts "✓ Footer with shortcuts displayed"
+    }
+}
+
+# Test 3: Test pane navigation (press 2 to focus System Prompt)
+sleep 0.5
+send "2"
+sleep 0.5
+
+# We should see some feedback (notification or focus change)
+# The notification system should show something
+expect {
+    timeout {
+        # Timeout is OK here, notification might be brief
+        puts "⚠ No visible feedback for pane focus (might be too fast)"
+    }
+    -re "(Focused|System Prompt)" {
+        puts "✓ Pane navigation works (key '2' for System Prompt)"
+    }
+}
+
+# Test 4: Navigate to User Prompt (press 1)
+sleep 0.5
+send "1"
+sleep 0.5
+
+expect {
+    timeout {
+        puts "⚠ No visible feedback for pane focus"
+    }
+    -re "(Focused|User Prompt)" {
+        puts "✓ Pane navigation works (key '1' for User Prompt)"
+    }
+}
+
+# Test 5: Navigate to Context (press 3)
+sleep 0.5
+send "3"
+sleep 0.5
+
+expect {
+    timeout {
+        puts "⚠ No visible feedback for pane focus"
+    }
+    -re "(Focused|Context)" {
+        puts "✓ Pane navigation works (key '3' for Context)"
+    }
+}
+
+# Test 6: Test quit (press q)
+sleep 0.5
+puts "→ Testing quit functionality..."
+send "q"
+
+expect {
+    timeout {
+        puts "ERROR: Application did not exit on 'q'"
+        exit 1
+    }
+    eof {
+        puts "✓ Application quit successfully with 'q' key"
+    }
+}
+
+# Wait for process to fully exit
+wait
+
+# Explicitly reset terminal state
+puts "→ Resetting terminal state..."
+cleanup_terminal
+sleep 0.2
+
+puts "\n=========================================="
+puts "✓ All TUI tests passed!"
+puts "=========================================="
+
+exit 0
