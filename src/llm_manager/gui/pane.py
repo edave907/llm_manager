@@ -16,6 +16,21 @@ from rich.text import Text
 class EditableTextArea(TextArea):
     """Custom TextArea that handles ESC key to exit edit mode."""
 
+    def on_focus(self) -> None:
+        """When TextArea gains focus (via mouse or otherwise), enter edit mode."""
+        # Find parent EditablePane and ensure edit_mode is set
+        parent = self.parent
+        while parent is not None:
+            if hasattr(parent, 'edit_mode') and hasattr(parent, 'enter_edit_mode'):
+                if not parent.edit_mode:
+                    # Set edit mode flag without calling focus again (avoid recursion)
+                    parent.edit_mode = True
+                    parent._update_footer()
+                return
+            parent = parent.parent
+        # Call parent's on_focus
+        super().on_focus()
+
     def _on_key(self, event: events.Key) -> None:
         """Handle key events, with ESC exiting edit mode."""
         if event.key == "escape":
@@ -40,6 +55,7 @@ class EditablePane(Container, can_focus=True):
 
     BINDINGS = [
         Binding("escape", "exit_edit_mode", "Exit Edit Mode", priority=True),
+        Binding("c", "clear_content", "Clear", show=False),
     ]
 
     DEFAULT_CSS = """
@@ -144,7 +160,7 @@ class EditablePane(Container, can_focus=True):
         text_area.can_focus = True
         yield text_area
         yield Label(
-            "i: Edit mode | e: nvim | Ctrl+S: Save | ESC: Command mode",
+            "i: Edit mode | e: nvim | c: clear | Ctrl+S: Save",
             classes="pane-footer",
             id=f"{self.id}-footer"
         )
@@ -201,7 +217,7 @@ class EditablePane(Container, can_focus=True):
             if self.edit_mode:
                 footer.update("-- EDIT MODE -- | ESC: Command mode | Ctrl+S: Save")
             else:
-                footer.update("i: Edit mode | e: nvim | Ctrl+S: Save")
+                footer.update("i: Edit mode | e: nvim | c: clear | Ctrl+S: Save")
         except Exception:
             pass
 
@@ -222,6 +238,22 @@ class EditablePane(Container, can_focus=True):
         """Action to exit edit mode (bound to ESC key)."""
         if self.edit_mode:
             self.exit_edit_mode()
+
+    def action_clear_content(self) -> None:
+        """Action to clear pane content (bound to 'c' key)."""
+        # Only allow clear in command mode
+        if not self.edit_mode:
+            self.clear_content()
+
+    def clear_content(self) -> None:
+        """Clear the content of the pane."""
+        try:
+            content_widget = self.query_one(f"#{self.id}-content", TextArea)
+            content_widget.load_text("")
+            self.save_content()
+            self.app.notify(f"{self.title_text} cleared", severity="information")
+        except Exception as e:
+            self.app.notify(f"Error clearing content: {e}", severity="error")
 
     def load_content(self) -> None:
         """Load content from storage."""

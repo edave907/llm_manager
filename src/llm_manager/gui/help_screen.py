@@ -87,7 +87,9 @@ class HelpScreen(ModalScreen):
                 yield Static(self._create_section(
                     "Editing",
                     [
-                        ("Type", "Edit pane content directly"),
+                        ("i", "Enter edit mode in prompt panes"),
+                        ("ESC", "Exit edit mode to command mode"),
+                        ("c", "Clear pane content (command mode only)"),
                         ("Ctrl+S", "Save current pane to disk"),
                         ("e", "Open current pane in external editor (nvim)"),
                         ("Ctrl+A", "Select all text"),
