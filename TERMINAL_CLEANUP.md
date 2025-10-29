@@ -51,6 +51,20 @@ You can also run these commands directly:
 reset
 ```
 
+**If reset fails (terminal device error), use this combination:**
+```bash
+# Disable mouse tracking
+printf '\033[?1000l\033[?1003l\033[?1015l\033[?1006l'
+
+# Clear screen and reset cursor
+clear
+# or if clear doesn't work:
+printf '\033[2J\033[H'
+
+# Restore sane terminal settings
+stty sane
+```
+
 **Or manually reset terminal modes:**
 ```bash
 printf '\033[?1000l\033[?1003l\033[?1015l\033[?1006l\033[?25h'
@@ -73,6 +87,9 @@ The cleanup commands disable these terminal features:
 - `\033[?1006l` - Disable SGR extended mouse mode
 - `\033[?25h` - Show cursor
 - `\033[0m` - Reset colors/formatting
+- `\033[2J` - Clear entire screen
+- `\033[H` - Move cursor to home position (top-left)
+- `\033c` - Full terminal reset (alternative to `reset` command)
 
 ## Prevention
 

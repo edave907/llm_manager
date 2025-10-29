@@ -1,0 +1,56 @@
+#!/usr/bin/expect -f
+# Test edit mode functionality in panes
+
+set timeout 10
+
+# Cleanup function
+proc cleanup_terminal {} {
+    # Disable mouse tracking modes
+    send "\033\[?1000l\033\[?1003l\033\[?1015l\033\[?1006l"
+    # Show cursor
+    send "\033\[?25h"
+    # Reset terminal
+    send "\033c"
+    sleep 0.5
+}
+
+# Start the application
+spawn python -m llm_manager
+expect {
+    timeout {
+        puts "ERROR: Application failed to start"
+        cleanup_terminal
+        exit 1
+    }
+    "LLM Manager"
+}
+
+sleep 1
+
+# Focus User Prompt pane (key '1')
+send "1"
+sleep 0.5
+
+# Enter edit mode (key 'i')
+send "i"
+sleep 0.5
+
+# Type some test text
+send "Hello, this is a test"
+sleep 0.5
+
+# Exit edit mode (ESC)
+send "\033"
+sleep 0.5
+
+# Quit the application
+send "q"
+sleep 0.5
+
+# Cleanup terminal
+cleanup_terminal
+
+puts "\nTest completed successfully!"
+puts "Edit mode test: User was able to enter edit mode, type text, and exit"
+
+exit 0

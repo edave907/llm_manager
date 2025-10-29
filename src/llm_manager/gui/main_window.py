@@ -18,6 +18,8 @@ from .llm_pane import LLMSelectionPane
 from .response_pane import ResponsePane
 from .help_screen import HelpScreen
 from .menu import PaneMenuScreen
+from .root_pane import RootPane
+from .prompt_manager_screen import PromptManagerScreen
 
 
 class PaneState(Enum):
@@ -81,16 +83,18 @@ class LLMManagerApp(App):
         Binding("?", "show_help", "Help", show=True),
         Binding("q", "quit", "Quit", show=True),
         Binding("escape", "show_pane_menu", "Menu", show=True),
+        Binding("6", "focus_root", "Root", show=True),
         Binding("1", "focus_user_prompt", "User Prompt", show=True),
         Binding("2", "focus_system_prompt", "System Prompt", show=True),
         Binding("3", "focus_context", "Context", show=True),
         Binding("4", "focus_llm_selection", "LLM Select", show=True),
         Binding("5", "focus_response", "Response", show=True),
-        Binding("tab", "focus_next", "Next Pane", show=True),
-        Binding("shift+tab", "focus_previous", "Prev Pane", show=True),
+        Binding("tab", "focus_next", "Next Pane", show=True, priority=True),
+        Binding("shift+tab", "focus_previous", "Prev Pane", show=True, priority=True),
         Binding("e", "edit_focused", "Edit", show=True),
         Binding("ctrl+s", "save_focused", "Save", show=True),
-        Binding("enter", "send_to_llm", "Send", show=True),
+        Binding("p", "open_prompt_manager", "Prompt Mgr", show=True),
+        Binding("ctrl+j", "send_to_llm", "Send", show=True, priority=True),
         Binding("s", "toggle_streaming", "Stream Toggle", show=False),
         Binding("c", "clear_response", "Clear", show=False),
         Binding("ctrl+e", "export_conversation", "Export", show=False),
@@ -99,6 +103,9 @@ class LLMManagerApp(App):
         Binding("n", "toggle_minimize", "Minimize", show=True),
         Binding("ctrl+up", "increase_height", "Height+", show=False),
         Binding("ctrl+down", "decrease_height", "Height-", show=False),
+        Binding("ctrl+h", "hide_all_children", "Hide All", show=False),
+        Binding("ctrl+shift+h", "show_all_children", "Show All", show=False),
+        Binding("ctrl+r", "reset_layout", "Reset Layout", show=False),
     ]
 
     TITLE = "LLM Manager"
@@ -118,7 +125,7 @@ class LLMManagerApp(App):
         self.maximized_pane = None
         self.PaneState = PaneState  # Make PaneState accessible to menu
 
-        # Create panes
+        # Create child panes first
         self.user_prompt_pane = EditablePane(
             title="User Prompt",
             storage_path=settings.USER_PROMPT_FILE,
@@ -148,35 +155,60 @@ class LLMManagerApp(App):
             id="response-pane"
         )
 
+        # Create root pane (will contain all other panes)
+        self.root_pane = RootPane(
+            child_panes_layout=self._compose_child_panes,
+            id="root-pane"
+        )
+
+    def _compose_child_panes(self) -> ComposeResult:
+        """Compose the layout of child panes within the root pane."""
+        # First row: User Prompt and System Prompt side by side
+        row1 = Horizontal(classes="pane-row")
+        row1.can_focus = False
+        with row1:
+            yield self.user_prompt_pane
+            yield self.system_prompt_pane
+
+        # Second row: Context and LLM Selection side by side
+        row2 = Horizontal(classes="pane-row")
+        row2.can_focus = False
+        with row2:
+            yield self.context_pane
+            yield self.llm_selection_pane
+
+        # Third row: Response pane (full width)
+        row3 = Vertical(classes="pane-row")
+        row3.can_focus = False
+        with row3:
+            yield self.response_pane
+
     def compose(self) -> ComposeResult:
-        """Compose the application layout."""
+        """Compose the application layout with hierarchical root pane structure."""
         yield Header()
 
-        with Container(id="pane-container"):
-            # First row: User Prompt and System Prompt side by side
-            with Horizontal(classes="pane-row"):
-                yield self.user_prompt_pane
-                yield self.system_prompt_pane
-
-            # Second row: Context and LLM Selection side by side
-            with Horizontal(classes="pane-row"):
-                yield self.context_pane
-                yield self.llm_selection_pane
-
-            # Third row: Response pane (full width)
-            with Vertical(classes="pane-row"):
-                yield self.response_pane
+        # Mount the root pane which contains all other panes
+        yield self.root_pane
 
         yield Footer()
 
     def on_mount(self) -> None:
         """Handle mount event."""
+        # Store child pane references in root pane
+        self.root_pane.child_panes = [
+            self.user_prompt_pane,
+            self.system_prompt_pane,
+            self.context_pane,
+            self.llm_selection_pane,
+            self.response_pane,
+        ]
+
         # Initialize pane states
         for pane, _ in self._get_pane_list():
             self.pane_states[pane] = PaneState.NORMAL
 
-        # Focus user prompt by default
-        self.user_prompt_pane.focus()
+        # Focus root pane by default to show hierarchy
+        self.root_pane.focus()
 
         # Load selected model
         selected_model = self.llm_selection_pane.get_selected_model()
@@ -186,6 +218,10 @@ class LLMManagerApp(App):
                 self.notify(f"Model loaded: {selected_model}", severity="information")
             else:
                 self.notify("Failed to load model. Check API keys.", severity="warning")
+
+    def action_focus_root(self) -> None:
+        """Focus the root pane."""
+        self.root_pane.focus()
 
     def action_focus_user_prompt(self) -> None:
         """Focus the user prompt pane."""
@@ -208,7 +244,18 @@ class LLMManagerApp(App):
         self.response_pane.focus()
 
     def _get_pane_list(self):
-        """Get the ordered list of panes."""
+        """Get the ordered list of all panes including root."""
+        return [
+            (self.root_pane, "Root"),
+            (self.user_prompt_pane, "User Prompt"),
+            (self.system_prompt_pane, "System Prompt"),
+            (self.context_pane, "Context"),
+            (self.llm_selection_pane, "LLM Selection"),
+            (self.response_pane, "Response"),
+        ]
+
+    def _get_child_panes(self):
+        """Get only the child panes (excluding root)."""
         return [
             (self.user_prompt_pane, "User Prompt"),
             (self.system_prompt_pane, "System Prompt"),
@@ -218,22 +265,25 @@ class LLMManagerApp(App):
         ]
 
     def _find_current_pane_index(self, panes):
-        """Find the index of the currently focused pane."""
+        """Find the index of the currently focused pane.
+
+        Walks up the widget tree from the focused widget to find which
+        top-level pane contains it.
+        """
         focused = self.focused
-        current_index = -1
+        if not focused:
+            return 0  # Default to first pane if nothing focused
 
-        for i, (pane, _) in enumerate(panes):
-            # Check if this pane or any of its children is focused
-            current = focused
-            while current is not None:
+        # Walk up from focused widget to find which pane it belongs to
+        current = focused
+        while current is not None:
+            # Check if this widget is one of our panes
+            for i, (pane, _) in enumerate(panes):
                 if current is pane:
-                    current_index = i
-                    break
-                current = current.parent
-            if current_index >= 0:
-                break
+                    return i
+            current = current.parent
 
-        return current_index
+        return 0  # Default to first pane if not found
 
     def action_focus_next(self) -> None:
         """Focus the next pane in sequence."""
@@ -410,6 +460,101 @@ class LLMManagerApp(App):
         # In a full implementation, you'd show a file picker
         self.notify("Import: Feature requires file picker", severity="information")
 
+    def action_open_prompt_manager(self) -> None:
+        """Open prompt manager for the currently focused pane."""
+        focused = self.focused
+        current = focused
+
+        # Find which pane is focused
+        pane_name = None
+        target_pane = None
+
+        while current is not None:
+            if current is self.user_prompt_pane:
+                pane_name = "User Prompt"
+                target_pane = self.user_prompt_pane
+                break
+            elif current is self.system_prompt_pane:
+                pane_name = "System Prompt"
+                target_pane = self.system_prompt_pane
+                break
+            elif current is self.context_pane:
+                pane_name = "Context"
+                target_pane = self.context_pane
+                break
+            current = current.parent
+
+        if not pane_name or not target_pane:
+            self.notify("Prompt manager only works for User Prompt, System Prompt, and Context panes", severity="warning")
+            return
+
+        # Open the prompt manager screen
+        self.push_screen(
+            PromptManagerScreen(
+                pane_name=pane_name,
+                current_content=target_pane.content
+            ),
+            lambda result: self._handle_prompt_manager_result(result, target_pane)
+        )
+
+    def _handle_prompt_manager_result(self, result: dict, target_pane) -> None:
+        """Handle the result from the prompt manager.
+
+        Args:
+            result: Dictionary with action and data
+            target_pane: The pane to update
+        """
+        if not result or result.get("action") == "cancel":
+            return
+
+        action = result.get("action")
+
+        if action == "load":
+            # Load prompt from file
+            file_path = Path(result.get("path"))
+            if file_path.exists():
+                new_content = file_path.read_text(encoding="utf-8")
+                mode = result.get("mode", "replace")  # Default to replace if no mode specified
+
+                if mode == "replace":
+                    # Replace entire content
+                    target_pane.content = new_content
+                    self.notify(f"Loaded (replaced): {result.get('filename')}", severity="information")
+                elif mode == "append":
+                    # Append to existing content
+                    current_content = target_pane.content
+                    target_pane.content = current_content + new_content
+                    self.notify(f"Loaded (appended): {result.get('filename')}", severity="information")
+                elif mode == "insert":
+                    # Insert at cursor position
+                    # Get the TextArea widget to access cursor position
+                    try:
+                        text_area = target_pane.query_one(f"#{target_pane.id}-content")
+                        cursor = text_area.cursor_location
+                        current_text = text_area.text
+
+                        # Calculate position from cursor location (row, column)
+                        lines = current_text.split('\n')
+                        position = sum(len(line) + 1 for line in lines[:cursor[0]]) + cursor[1]
+
+                        # Insert at cursor position
+                        new_text = current_text[:position] + new_content + current_text[position:]
+                        target_pane.content = new_text
+                        self.notify(f"Loaded (inserted): {result.get('filename')}", severity="information")
+                    except Exception:
+                        # Fallback to append if cursor position not available
+                        current_content = target_pane.content
+                        target_pane.content = current_content + new_content
+                        self.notify(f"Loaded (appended): {result.get('filename')}", severity="information")
+            else:
+                self.notify("File not found", severity="error")
+
+        elif action == "save":
+            # Save current prompt to file
+            file_path = Path(result.get("path"))
+            file_path.write_text(target_pane.content, encoding="utf-8")
+            self.notify(f"Saved: {result.get('filename')}", severity="information")
+
     def action_show_help(self) -> None:
         """Show the help screen."""
         self.push_screen(HelpScreen())
@@ -432,8 +577,11 @@ class LLMManagerApp(App):
 
     def _get_pane_row(self, pane):
         """Get the row container for a given pane."""
-        # Map panes to their row indices
-        if pane in [self.user_prompt_pane, self.system_prompt_pane]:
+        # Root pane contains all rows, so it doesn't have a specific row
+        if pane == self.root_pane:
+            return None
+        # Map child panes to their row indices
+        elif pane in [self.user_prompt_pane, self.system_prompt_pane]:
             return 0
         elif pane in [self.context_pane, self.llm_selection_pane]:
             return 1
@@ -490,6 +638,10 @@ class LLMManagerApp(App):
         """Maximize a specific pane."""
         containers = self.query(".pane-row")
         target_row_idx = self._get_pane_row(pane)
+
+        # Can't maximize panes that aren't in a row (like root pane)
+        if target_row_idx is None:
+            return
 
         # Hide all rows except the one containing the target pane
         for idx, container in enumerate(containers):
@@ -619,6 +771,29 @@ class LLMManagerApp(App):
                         # 1fr → Minimized
                         pane.add_class("pane-minimized")
                         self.pane_states[pane] = PaneState.MINIMIZED
+
+    def action_hide_all_children(self) -> None:
+        """Hide all child panes (root-level operation)."""
+        self.root_pane.hide_all_children()
+
+    def action_show_all_children(self) -> None:
+        """Show all child panes (root-level operation)."""
+        self.root_pane.show_all_children()
+
+    def action_reset_layout(self) -> None:
+        """Reset layout to defaults (root-level operation)."""
+        # Restore from maximized state if any
+        if self.maximized_pane is not None:
+            self._restore_all_panes()
+            self.maximized_pane = None
+
+        # Reset all pane states via root pane
+        self.root_pane.reset_layout()
+
+        # Reset pane state tracking
+        for pane, _ in self._get_pane_list():
+            if pane in self.pane_states:
+                self.pane_states[pane] = PaneState.NORMAL
 
 
 def run_app() -> None:

@@ -80,10 +80,16 @@ class PaneMenuScreen(ModalScreen):
             # Build menu options
             options = []
 
-            # List all panes section
-            options.append(Option(Text("═══ All Panes ═══", style="bold cyan"), disabled=True))
+            # Hierarchical pane structure
+            options.append(Option(Text("═══ Pane Hierarchy ═══", style="bold cyan"), disabled=True))
 
-            for pane, name in self.app_ref._get_pane_list():
+            # Root pane
+            root_pane = self.app_ref.root_pane
+            root_id = root_pane.id if hasattr(root_pane, 'id') else str(id(root_pane))
+            options.append(Option(Text("🌳 Root", style="bold magenta"), id=f"pane_{root_id}"))
+
+            # Child panes (indented)
+            for pane, name in self.app_ref._get_child_panes():
                 pane_id = pane.id if hasattr(pane, 'id') else str(id(pane))
                 is_hidden = pane.styles.display == "none"
 
@@ -101,18 +107,27 @@ class PaneMenuScreen(ModalScreen):
                     status = "👁 Visible"
                     style = "white"
 
-                label = Text(f"{name:20} {status}", style=style)
+                # Add tree-style indentation
+                label = Text(f"  ├─ {name:18} {status}", style=style)
                 options.append(Option(label, id=f"pane_{pane_id}"))
 
             # Separator
             options.append(Option(Text("─────────────────────", style="dim"), disabled=True))
 
-            # Actions section
-            options.append(Option(Text("═══ Actions ═══", style="bold magenta"), disabled=True))
+            # Pane actions section
+            options.append(Option(Text("═══ Pane Actions ═══", style="bold magenta"), disabled=True))
             options.append(Option("📋 Select/Focus Pane", id="action_select"))
             options.append(Option("🔒 Hide Selected Pane", id="action_hide"))
             options.append(Option("👁 Unhide Selected Pane", id="action_unhide"))
-            options.append(Option("🔄 Show All Panes", id="action_show_all"))
+
+            # Separator
+            options.append(Option(Text("─────────────────────", style="dim"), disabled=True))
+
+            # Root-level actions
+            options.append(Option(Text("═══ Root Actions ═══", style="bold yellow"), disabled=True))
+            options.append(Option("🌳 Hide All Children", id="action_hide_all"))
+            options.append(Option("🌳 Show All Children", id="action_show_all"))
+            options.append(Option("🌳 Reset Layout", id="action_reset"))
 
             yield OptionList(*options, id="menu-options")
             yield Label("↑/↓ Navigate | Enter Select | ESC/Q Close", id="menu-status")
@@ -135,8 +150,15 @@ class PaneMenuScreen(ModalScreen):
             self._hide_highlighted_pane()
         elif option_id == "action_unhide":
             self._unhide_highlighted_pane()
+        elif option_id == "action_hide_all":
+            self.app_ref.action_hide_all_children()
+            self.dismiss()
         elif option_id == "action_show_all":
-            self._show_all_panes()
+            self.app_ref.action_show_all_children()
+            self.dismiss()
+        elif option_id == "action_reset":
+            self.app_ref.action_reset_layout()
+            self.dismiss()
 
     def _find_pane_by_id(self, option_id):
         """Find pane by option ID."""
@@ -189,12 +211,6 @@ class PaneMenuScreen(ModalScreen):
                 self.app_ref.action_show_pane_menu()
             elif pane and pane.styles.display != "none":
                 self.app_ref.notify("Pane is already visible", severity="warning")
-
-    def _show_all_panes(self):
-        """Show all hidden panes."""
-        for pane, _ in self.app_ref._get_pane_list():
-            pane.styles.display = "block"
-        self.dismiss()
 
     def action_dismiss(self):
         """Dismiss the menu screen."""

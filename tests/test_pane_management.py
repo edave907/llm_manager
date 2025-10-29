@@ -44,6 +44,7 @@ class TestPaneManagement:
 
     def test_get_pane_name(self, app):
         """Test getting pane display names."""
+        assert app._get_pane_name(app.root_pane) == "Root"
         assert app._get_pane_name(app.user_prompt_pane) == "User Prompt"
         assert app._get_pane_name(app.system_prompt_pane) == "System Prompt"
         assert app._get_pane_name(app.context_pane) == "Context"
@@ -52,6 +53,9 @@ class TestPaneManagement:
 
     def test_get_pane_row(self, app):
         """Test getting pane row indices."""
+        # Root pane doesn't have a specific row (contains all rows)
+        assert app._get_pane_row(app.root_pane) is None
+
         # Row 0: User Prompt and System Prompt
         assert app._get_pane_row(app.user_prompt_pane) == 0
         assert app._get_pane_row(app.system_prompt_pane) == 0
@@ -66,16 +70,18 @@ class TestPaneManagement:
     def test_pane_list(self, app):
         """Test that _get_pane_list returns all panes in order."""
         panes = app._get_pane_list()
-        assert len(panes) == 5
+        assert len(panes) == 6
 
         pane_objects, pane_names = zip(*panes)
 
+        assert app.root_pane in pane_objects
         assert app.user_prompt_pane in pane_objects
         assert app.system_prompt_pane in pane_objects
         assert app.context_pane in pane_objects
         assert app.llm_selection_pane in pane_objects
         assert app.response_pane in pane_objects
 
+        assert "Root" in pane_names
         assert "User Prompt" in pane_names
         assert "System Prompt" in pane_names
         assert "Context" in pane_names

@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     # Application paths
     DATA_DIR: Path = Path.home() / ".llm_manager" / "data"
     RUNTIME_DIR: Path = Path.home() / ".llm_manager" / "runtime"
+    PROMPTS_DIR: Path = Path.home() / ".llm_manager" / "prompts"
 
     # Pane content persistence files
     USER_PROMPT_FILE: Path = DATA_DIR / "user_prompt.txt"
@@ -50,6 +51,7 @@ class Settings(BaseSettings):
         """Ensure all required directories exist."""
         self.DATA_DIR.mkdir(parents=True, exist_ok=True)
         self.RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+        self.PROMPTS_DIR.mkdir(parents=True, exist_ok=True)
 
     def ensure_files(self) -> None:
         """Ensure all pane files exist with default content."""

@@ -4,15 +4,43 @@ import subprocess
 import tempfile
 from pathlib import Path
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Container
 from textual.widget import Widget
 from textual.widgets import Static, Label, TextArea
 from textual.reactive import reactive
+from textual import events
 from rich.text import Text
+
+
+class EditableTextArea(TextArea):
+    """Custom TextArea that handles ESC key to exit edit mode."""
+
+    def _on_key(self, event: events.Key) -> None:
+        """Handle key events, with ESC exiting edit mode."""
+        if event.key == "escape":
+            # Find parent with exit_edit_mode method and call it
+            parent = self.parent
+            while parent is not None:
+                if hasattr(parent, 'exit_edit_mode') and hasattr(parent, 'edit_mode'):
+                    # Always try to exit edit mode when ESC is pressed
+                    parent.exit_edit_mode()
+                    event.prevent_default()
+                    event.stop()
+                    return
+                parent = parent.parent
+            # If no parent found, just return
+            return
+        # For all other keys, call the parent TextArea's handler
+        super()._on_key(event)
 
 
 class EditablePane(Container, can_focus=True):
     """A pane that displays content and can be edited with nvim."""
+
+    BINDINGS = [
+        Binding("escape", "exit_edit_mode", "Exit Edit Mode", priority=True),
+    ]
 
     DEFAULT_CSS = """
     EditablePane {
@@ -107,27 +135,93 @@ class EditablePane(Container, can_focus=True):
         self.storage_path = storage_path
         self.editor = editor
         self.is_docked = True
+        self.edit_mode = False  # Track edit vs command mode
 
     def compose(self) -> ComposeResult:
         """Compose the pane widget."""
         yield Label(self.title_text, classes="pane-title")
-        yield TextArea("", id=f"{self.id}-content", classes="pane-content")
+        text_area = EditableTextArea("", id=f"{self.id}-content", classes="pane-content")
+        text_area.can_focus = True
+        yield text_area
         yield Label(
-            "Type to edit | 'e' for nvim | Ctrl+S to save",
-            classes="pane-footer"
+            "i: Edit mode | e: nvim | Ctrl+S: Save | ESC: Command mode",
+            classes="pane-footer",
+            id=f"{self.id}-footer"
         )
 
     def on_mount(self) -> None:
         """Load content when pane is mounted."""
         self.load_content()
+        # Start in command mode
+        self.edit_mode = False
+        self._update_footer()
 
     def on_focus(self) -> None:
         """Handle focus event."""
         self.add_class("pane-focused")
+        # Ensure we stay in command mode when pane gets focus
+        if not self.edit_mode:
+            # Check if TextArea somehow got focus and unfocus it
+            try:
+                content_widget = self.query_one(f"#{self.id}-content", TextArea)
+                if content_widget.has_focus:
+                    # Call focus on self but use call_later to avoid recursion
+                    self.app.call_later(lambda: self.focus() if not self.edit_mode else None)
+            except Exception:
+                pass
 
     def on_blur(self) -> None:
         """Handle blur event."""
         self.remove_class("pane-focused")
+        # Don't automatically exit edit mode here - let user press ESC to exit
+        # This avoids timing issues with focus changes
+
+    def enter_edit_mode(self) -> None:
+        """Enter edit mode - focus the TextArea for typing."""
+        if not self.edit_mode:
+            self.edit_mode = True
+            try:
+                content_widget = self.query_one(f"#{self.id}-content", TextArea)
+                content_widget.focus()
+                self._update_footer()
+            except Exception:
+                pass
+
+    def exit_edit_mode(self) -> None:
+        """Exit edit mode - return to command mode."""
+        if self.edit_mode:
+            self.edit_mode = False
+            self.focus()
+            self._update_footer()
+
+    def _update_footer(self) -> None:
+        """Update footer to show current mode."""
+        try:
+            footer = self.query_one(f"#{self.id}-footer", Label)
+            if self.edit_mode:
+                footer.update("-- EDIT MODE -- | ESC: Command mode | Ctrl+S: Save")
+            else:
+                footer.update("i: Edit mode | e: nvim | Ctrl+S: Save")
+        except Exception:
+            pass
+
+    def on_key(self, event) -> None:
+        """Handle key events."""
+        # In command mode, 'i' enters edit mode
+        if not self.edit_mode and event.key == "i":
+            self.enter_edit_mode()
+            event.prevent_default()
+            event.stop()
+        # ESC in edit mode exits to command mode
+        elif self.edit_mode and event.key == "escape":
+            self.exit_edit_mode()
+            event.prevent_default()
+            event.stop()
+
+    def action_exit_edit_mode(self) -> None:
+        """Action to exit edit mode (bound to ESC key)."""
+        if self.edit_mode:
+            self.exit_edit_mode()
 
     def load_content(self) -> None:
         """Load content from storage."""

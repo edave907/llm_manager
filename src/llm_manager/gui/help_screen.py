@@ -100,7 +100,7 @@ class HelpScreen(ModalScreen):
                 yield Static(self._create_section(
                     "LLM Operations",
                     [
-                        ("Enter", "Send prompts to LLM"),
+                        ("Ctrl+J", "Send prompts to LLM"),
                         ("4", "Focus LLM selection pane"),
                         ("↑/↓", "Navigate LLM models (when in LLM pane)"),
                         ("Enter", "Select LLM model (when in LLM pane)"),
