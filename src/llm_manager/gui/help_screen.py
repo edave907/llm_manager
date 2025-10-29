@@ -77,7 +77,6 @@ class HelpScreen(ModalScreen):
                 yield Static(self._create_section(
                     "Navigation",
                     [
-                        ("1-5", "Jump to specific pane (1=User, 2=System, 3=Context, 4=LLM, 5=Response)"),
                         ("Tab", "Focus next pane"),
                         ("Shift+Tab", "Focus previous pane"),
                     ]
@@ -103,7 +102,6 @@ class HelpScreen(ModalScreen):
                     "LLM Operations",
                     [
                         ("Ctrl+J", "Send prompts to LLM"),
-                        ("4", "Focus LLM selection pane"),
                         ("↑/↓", "Navigate LLM models (when in LLM pane)"),
                         ("Enter", "Select LLM model (when in LLM pane)"),
                     ]
@@ -115,7 +113,6 @@ class HelpScreen(ModalScreen):
                     [
                         ("s", "Toggle streaming mode on/off"),
                         ("c", "Clear response pane"),
-                        ("5", "Focus response pane"),
                     ]
                 ), classes="help-section")
 
