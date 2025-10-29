@@ -246,11 +246,10 @@ class EditablePane(Container, can_focus=True):
             self.clear_content()
 
     def clear_content(self) -> None:
-        """Clear the content of the pane."""
+        """Clear the content of the pane (display only, does not save to disk)."""
         try:
             content_widget = self.query_one(f"#{self.id}-content", TextArea)
             content_widget.load_text("")
-            self.save_content()
             self.app.notify(f"{self.title_text} cleared", severity="information")
         except Exception as e:
             self.app.notify(f"Error clearing content: {e}", severity="error")
