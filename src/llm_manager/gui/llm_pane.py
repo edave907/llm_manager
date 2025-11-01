@@ -136,6 +136,16 @@ class LLMSelectionPane(Container, can_focus=True):
                 if config:
                     options.append(Option(config.display_name, id=model_name))
 
+            # Separator
+            options.append(Option(Text("---", style="dim"), disabled=True))
+
+            # OpenAI-compatible models (vLLM, llama.cpp, etc.)
+            options.append(Option(Text("OpenAI-Compatible (vLLM/llama.cpp)", style="bold yellow"), disabled=True))
+            for model_name in MODELS_BY_PROVIDER.get("openai_compatible", []):
+                config = get_model_config(model_name)
+                if config:
+                    options.append(Option(config.display_name, id=model_name))
+
             yield OptionList(*options, classes="model-list", id="model-option-list")
             yield Static("", classes="model-info", id="model-info-display")
 

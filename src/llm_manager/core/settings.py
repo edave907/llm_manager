@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
     OLLAMA_BASE_URL: str = "http://localhost:11434"
 
+    # OpenAI-compatible servers (vLLM, llama.cpp, etc.)
+    OPENAI_COMPATIBLE_BASE_URL: str = "http://localhost:8000/v1"
+    OPENAI_COMPATIBLE_API_KEY: str = ""  # Optional, depends on server
+
     # Default model
     DEFAULT_MODEL: str = "openai:gpt-4o-mini"
 

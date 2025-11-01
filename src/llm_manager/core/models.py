@@ -129,6 +129,43 @@ AVAILABLE_MODELS: Dict[str, ModelConfig] = {
         input_cost_per_1k=0.0,
         output_cost_per_1k=0.0,
     ),
+    # OpenAI-Compatible Models (vLLM, llama.cpp, etc.)
+    "openai_compatible:default": ModelConfig(
+        name="openai_compatible:default",
+        display_name="Custom Server (Default)",
+        provider="openai_compatible",
+        context_window=8192,
+        max_output_tokens=2048,
+        input_cost_per_1k=0.0,
+        output_cost_per_1k=0.0,
+    ),
+    "openai_compatible:llama-3-8b": ModelConfig(
+        name="openai_compatible:llama-3-8b",
+        display_name="Llama 3 8B (vLLM)",
+        provider="openai_compatible",
+        context_window=8192,
+        max_output_tokens=2048,
+        input_cost_per_1k=0.0,
+        output_cost_per_1k=0.0,
+    ),
+    "openai_compatible:mistral-7b": ModelConfig(
+        name="openai_compatible:mistral-7b",
+        display_name="Mistral 7B (vLLM)",
+        provider="openai_compatible",
+        context_window=32768,
+        max_output_tokens=4096,
+        input_cost_per_1k=0.0,
+        output_cost_per_1k=0.0,
+    ),
+    "openai_compatible:qwen2.5-32b": ModelConfig(
+        name="openai_compatible:qwen2.5-32b",
+        display_name="Qwen 2.5 32B (vLLM)",
+        provider="openai_compatible",
+        context_window=32768,
+        max_output_tokens=4096,
+        input_cost_per_1k=0.0,
+        output_cost_per_1k=0.0,
+    ),
 }
 
 # Group models by provider for organized display
@@ -149,6 +186,12 @@ MODELS_BY_PROVIDER = {
         "ollama:qwen2.5",
         "ollama:mistral",
         "ollama:codellama",
+    ],
+    "openai_compatible": [
+        "openai_compatible:default",
+        "openai_compatible:llama-3-8b",
+        "openai_compatible:mistral-7b",
+        "openai_compatible:qwen2.5-32b",
     ],
 }
 

@@ -19,6 +19,7 @@ class LLMClient:
         self.model_config: Optional[ModelConfig] = None
         self._openai_client: Optional[openai.OpenAI] = None
         self._anthropic_client: Optional[anthropic.Anthropic] = None
+        self._openai_compatible_client: Optional[openai.OpenAI] = None
 
     def set_model(self, model_name: str) -> bool:
         """Set the current model.
@@ -53,6 +54,14 @@ class LLMClient:
         elif config.provider == "ollama":
             # Ollama doesn't require API key, just verify base URL is set
             pass
+        elif config.provider == "openai_compatible":
+            # OpenAI-compatible servers (vLLM, llama.cpp, etc.)
+            # API key is optional depending on the server
+            api_key = settings.OPENAI_COMPATIBLE_API_KEY or "dummy-key"
+            self._openai_compatible_client = openai.OpenAI(
+                api_key=api_key,
+                base_url=settings.OPENAI_COMPATIBLE_BASE_URL,
+            )
 
         return True
 
@@ -97,6 +106,8 @@ class LLMClient:
             return self._send_anthropic_message(full_prompt, system_prompt, max_tokens)
         elif self.model_config.provider == "ollama":
             return self._send_ollama_message(full_prompt, system_prompt, max_tokens)
+        elif self.model_config.provider == "openai_compatible":
+            return self._send_openai_compatible_message(full_prompt, system_prompt, max_tokens)
         else:
             raise ValueError(f"Unsupported provider: {self.model_config.provider}")
 
@@ -145,6 +156,29 @@ class LLMClient:
         response = self._anthropic_client.messages.create(**kwargs)
 
         return response.content[0].text
+
+    def _send_openai_compatible_message(
+        self, user_prompt: str, system_prompt: str, max_tokens: int
+    ) -> str:
+        """Send message to OpenAI-compatible API (vLLM, llama.cpp, etc.)."""
+        if not self._openai_compatible_client:
+            raise ValueError("OpenAI-compatible client not initialized. Check base URL.")
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": user_prompt})
+
+        # Extract actual model name (remove provider prefix)
+        model_name = self.current_model.split(":", 1)[1] if ":" in self.current_model else self.current_model
+
+        response = self._openai_compatible_client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            max_tokens=max_tokens,
+        )
+
+        return response.choices[0].message.content
 
     def _send_ollama_message(
         self, user_prompt: str, system_prompt: str, max_tokens: int
@@ -219,6 +253,8 @@ class LLMClient:
             yield from self._stream_anthropic_message(full_prompt, system_prompt, max_tokens)
         elif self.model_config.provider == "ollama":
             yield from self._stream_ollama_message(full_prompt, system_prompt, max_tokens)
+        elif self.model_config.provider == "openai_compatible":
+            yield from self._stream_openai_compatible_message(full_prompt, system_prompt, max_tokens)
         else:
             raise ValueError(f"Unsupported provider: {self.model_config.provider}")
 
@@ -270,6 +306,32 @@ class LLMClient:
         with self._anthropic_client.messages.stream(**kwargs) as stream:
             for text in stream.text_stream:
                 yield text
+
+    def _stream_openai_compatible_message(
+        self, user_prompt: str, system_prompt: str, max_tokens: int
+    ) -> Generator[str, None, None]:
+        """Stream message from OpenAI-compatible API."""
+        if not self._openai_compatible_client:
+            raise ValueError("OpenAI-compatible client not initialized. Check base URL.")
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": user_prompt})
+
+        # Extract actual model name (remove provider prefix)
+        model_name = self.current_model.split(":", 1)[1] if ":" in self.current_model else self.current_model
+
+        stream = self._openai_compatible_client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            max_tokens=max_tokens,
+            stream=True,
+        )
+
+        for chunk in stream:
+            if chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
 
     def _stream_ollama_message(
         self, user_prompt: str, system_prompt: str, max_tokens: int
