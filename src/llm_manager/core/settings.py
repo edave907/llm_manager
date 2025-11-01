@@ -1,4 +1,24 @@
-"""Configuration settings for LLM Manager."""
+"""Configuration settings for LLM Manager.
+
+Environment Variable Overrides:
+-------------------------------
+Per-Model Overrides:
+  MODEL_CONTEXT_<MODEL_NAME>=<tokens>    - Override context window
+  MODEL_MAX_TOKENS_<MODEL_NAME>=<tokens> - Override max output tokens
+
+  Example:
+    MODEL_CONTEXT_GPT_4O=200000
+    MODEL_MAX_TOKENS_GPT_4O=8192
+    MODEL_CONTEXT_LLAMA3_2=131072
+
+Global Overrides:
+  INPUT_BUDGET_TOKENS=<tokens>  - Cap input budget globally
+  MAX_OUTPUT_TOKENS=<tokens>    - Cap output budget globally
+
+  Example:
+    INPUT_BUDGET_TOKENS=80000
+    MAX_OUTPUT_TOKENS=1024
+"""
 
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
