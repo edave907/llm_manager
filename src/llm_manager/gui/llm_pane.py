@@ -126,6 +126,16 @@ class LLMSelectionPane(Container, can_focus=True):
                 if config:
                     options.append(Option(config.display_name, id=model_name))
 
+            # Separator
+            options.append(Option(Text("---", style="dim"), disabled=True))
+
+            # Ollama models (local)
+            options.append(Option(Text("Ollama Models (Local)", style="bold green"), disabled=True))
+            for model_name in MODELS_BY_PROVIDER.get("ollama", []):
+                config = get_model_config(model_name)
+                if config:
+                    options.append(Option(config.display_name, id=model_name))
+
             yield OptionList(*options, classes="model-list", id="model-option-list")
             yield Static("", classes="model-info", id="model-info-display")
 

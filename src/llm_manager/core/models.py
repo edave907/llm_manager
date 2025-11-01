@@ -92,6 +92,43 @@ AVAILABLE_MODELS: Dict[str, ModelConfig] = {
         input_cost_per_1k=0.25,
         output_cost_per_1k=1.25,
     ),
+    # Ollama Models (local)
+    "ollama:llama3.2": ModelConfig(
+        name="ollama:llama3.2",
+        display_name="Llama 3.2",
+        provider="ollama",
+        context_window=128000,
+        max_output_tokens=4096,
+        input_cost_per_1k=0.0,
+        output_cost_per_1k=0.0,
+    ),
+    "ollama:qwen2.5": ModelConfig(
+        name="ollama:qwen2.5",
+        display_name="Qwen 2.5",
+        provider="ollama",
+        context_window=32768,
+        max_output_tokens=2048,
+        input_cost_per_1k=0.0,
+        output_cost_per_1k=0.0,
+    ),
+    "ollama:mistral": ModelConfig(
+        name="ollama:mistral",
+        display_name="Mistral",
+        provider="ollama",
+        context_window=32768,
+        max_output_tokens=4096,
+        input_cost_per_1k=0.0,
+        output_cost_per_1k=0.0,
+    ),
+    "ollama:codellama": ModelConfig(
+        name="ollama:codellama",
+        display_name="Code Llama",
+        provider="ollama",
+        context_window=16384,
+        max_output_tokens=4096,
+        input_cost_per_1k=0.0,
+        output_cost_per_1k=0.0,
+    ),
 }
 
 # Group models by provider for organized display
@@ -106,6 +143,12 @@ MODELS_BY_PROVIDER = {
         "anthropic:claude-3-5-sonnet-latest",
         "anthropic:claude-3-opus-20240229",
         "anthropic:claude-3-haiku-20240307",
+    ],
+    "ollama": [
+        "ollama:llama3.2",
+        "ollama:qwen2.5",
+        "ollama:mistral",
+        "ollama:codellama",
     ],
 }
 

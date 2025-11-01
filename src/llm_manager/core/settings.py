@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     ANTHROPIC_API_KEY: str = ""
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
 
     # Default model
     DEFAULT_MODEL: str = "openai:gpt-4o-mini"

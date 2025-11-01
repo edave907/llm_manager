@@ -3,6 +3,8 @@
 from typing import Optional, Generator
 import anthropic
 import openai
+import requests
+import json
 
 from .models import ModelConfig, get_model_config
 from .settings import settings
@@ -48,6 +50,9 @@ class LLMClient:
             self._anthropic_client = anthropic.Anthropic(
                 api_key=settings.ANTHROPIC_API_KEY
             )
+        elif config.provider == "ollama":
+            # Ollama doesn't require API key, just verify base URL is set
+            pass
 
         return True
 
@@ -90,6 +95,8 @@ class LLMClient:
             return self._send_openai_message(full_prompt, system_prompt, max_tokens)
         elif self.model_config.provider == "anthropic":
             return self._send_anthropic_message(full_prompt, system_prompt, max_tokens)
+        elif self.model_config.provider == "ollama":
+            return self._send_ollama_message(full_prompt, system_prompt, max_tokens)
         else:
             raise ValueError(f"Unsupported provider: {self.model_config.provider}")
 
@@ -139,6 +146,38 @@ class LLMClient:
 
         return response.content[0].text
 
+    def _send_ollama_message(
+        self, user_prompt: str, system_prompt: str, max_tokens: int
+    ) -> str:
+        """Send message to Ollama API."""
+        # Extract actual model name (remove provider prefix)
+        model_name = self.current_model.split(":", 1)[1] if ":" in self.current_model else self.current_model
+
+        url = f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/chat"
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": user_prompt})
+
+        payload = {
+            "model": model_name,
+            "messages": messages,
+            "options": {
+                "temperature": 0.2,
+                "num_predict": max_tokens,
+            },
+            "stream": False,
+        }
+
+        try:
+            response = requests.post(url, json=payload, timeout=600)
+            response.raise_for_status()
+            result = response.json()
+            return result.get("message", {}).get("content", "")
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Ollama API error: {e}")
+
     def stream_message(
         self,
         user_prompt: str,
@@ -178,6 +217,8 @@ class LLMClient:
             yield from self._stream_openai_message(full_prompt, system_prompt, max_tokens)
         elif self.model_config.provider == "anthropic":
             yield from self._stream_anthropic_message(full_prompt, system_prompt, max_tokens)
+        elif self.model_config.provider == "ollama":
+            yield from self._stream_ollama_message(full_prompt, system_prompt, max_tokens)
         else:
             raise ValueError(f"Unsupported provider: {self.model_config.provider}")
 
@@ -229,6 +270,48 @@ class LLMClient:
         with self._anthropic_client.messages.stream(**kwargs) as stream:
             for text in stream.text_stream:
                 yield text
+
+    def _stream_ollama_message(
+        self, user_prompt: str, system_prompt: str, max_tokens: int
+    ) -> Generator[str, None, None]:
+        """Stream message from Ollama API."""
+        # Extract actual model name (remove provider prefix)
+        model_name = self.current_model.split(":", 1)[1] if ":" in self.current_model else self.current_model
+
+        url = f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/chat"
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": user_prompt})
+
+        payload = {
+            "model": model_name,
+            "messages": messages,
+            "options": {
+                "temperature": 0.2,
+                "num_predict": max_tokens,
+            },
+            "stream": True,
+        }
+
+        try:
+            with requests.post(url, json=payload, stream=True, timeout=600) as response:
+                response.raise_for_status()
+                for line in response.iter_lines(decode_unicode=True):
+                    if not line:
+                        continue
+                    try:
+                        obj = json.loads(line)
+                        if obj.get("done"):
+                            break
+                        content = obj.get("message", {}).get("content", "")
+                        if content:
+                            yield content
+                    except json.JSONDecodeError:
+                        continue
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Ollama streaming error: {e}")
 
     def get_current_model_info(self) -> str:
         """Get information about the current model."""
